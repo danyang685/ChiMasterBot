@@ -142,8 +142,10 @@ def answer_book(event: Event):
     return {'reply': f"[CQ:reply,id={event['message_id']}] {random.choice(BOOK)}"}
 
 
-def answer_weakness():
-    return {'reply': random.choice(CORPUS)}
+async def answer_weakness(event: Event):
+    say=random.choice(CORPUS)
+    await bot.send(event,say)
+    return {'reply': f'[CQ:tts,text={say}啊啊啊]'}
 
 
 def answer_battle():
@@ -407,7 +409,8 @@ async def _(event: Event):
         if '对不起' == msg_c:
             return answer_reply('没关系（虽然可能不是对我说的，但是这种简单的回复，我可以代劳）')
         if '卖弱' == msg_c:
-            return answer_weakness()
+            ds= await answer_weakness(event)
+            return ds
         if start_in(msg_c.strip(), ['维护', '-f', '--faq']):
             msg_admin_list = f"管理员列表：{'、'.join([str(x) for x in ADMINS])}，请联系管理员索要管理员权限。"
             faq_help = str(
@@ -644,6 +647,10 @@ async def _(event: Event):
             return answer_reply('''[CQ:json,data={"app":"com.tencent.autoreply"&#44;"desc":""&#44;"view":"autoreply"&#44;"ver":"0.0.0.1"&#44;"prompt":"新人入群"&#44;"meta":{"metadata":{"title":"本群免费发放管理员身份"&#44;"buttons":&#91;{"slot":1&#44;"action_data":"我现在有管理员权限了！"&#44;"name":"点我获取管理员权限"&#44;"action":"notify"}&#93;&#44;"type":"guest"&#44;"token":"LAcV49xqyE57S17B8ZT6FU7odBveNMYJzux288tBD3c="}}&#44;"config":{"forward":1&#44;"showSender":1}}]''')
         if msg_c in ['试试']:
             return answer_reply('[CQ:video,file=1cccd7f31e56193694f82349844f7246.video]')
+        if msg_c in ['语音测试']:
+            return answer_reply('[CQ:tts,text=这是一条测试消息]')
+        if msg_c in ['主人跟大家问个好']:
+            return answer_reply('[CQ:tts,text=你们好啊，我是主人啊啊！]')
         if msg_c == '敏感词':
             await bot.delete_msg(message_id=event['message_id'])
             return None
