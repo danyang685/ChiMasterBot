@@ -1,2 +1,4 @@
 aiocqhttp
 rapidfuzz
+requests
+beautifulsoup4
