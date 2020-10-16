@@ -15,6 +15,8 @@ COMMAND_REGEX = re.compile(r'问\s*(\S+)')
 
 def load_faq_questions():
     global QUESTIONS, QUESTIONS_KEY
+    if not Path('questions.json').is_file():
+        Path('questions.json').write_text(r'{}')
     QUESTIONS = json.loads(Path('questions.json').read_text('utf-8'))
     for k, v in QUESTIONS.items():
         if type(v) == dict:
@@ -37,6 +39,8 @@ def save_questions():
 
 def load_admin():
     global ADMINS
+    if not Path('admins.json').is_file():
+        Path('admins.json').write_text(r'[]')
     ADMINS = json.loads(Path('admins.json').read_text('utf-8'))
 
 

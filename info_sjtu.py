@@ -1,8 +1,6 @@
 import requests
 import json
-from bs4 import BeautifulSoup
-from itertools import combinations
-import random
+from ids import get_buildings_headcount
 
 
 def get_canteen_msg():
@@ -66,38 +64,22 @@ def get_library_msg():
     return msg
 
 
-def get_news_msg():
-    return '新闻功能已关闭，请上网自行阅览！'
-    s = requests.session()
-    s.headers.update(
-        {
-            'Accept-Encoding': 'gzip, deflate',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/84.0.4147.135 Safari/537.36'
-        }
-    )
-    r = s.get('http://www.people.com.cn/')
-    soup = BeautifulSoup(r.content, 'html5lib')
-    headline = soup.find('section', {'class': 'w1000 cont_a'})
-    news_links = [i['href'].strip() for i in headline.find_all('a')]
-    news_links = [
-        i for i in news_links if 'pic.people' not in i and 'v.people' not in i and len(i) > 58]
+def get_classroom_msg():
+    result = get_buildings_headcount()
+    msg = ''
+    has = False
 
-    news_links = list(random.choice(list(combinations(news_links, 5))))
+    for i in result:
+        if i['count'] == 0:
+            continue
+        has = True
+        msg += f"{i['name']}：目前约有{i['count']}人在教室，剩余承载力{100-i['percentage']}％\n"
 
-    news_titles = []
-    for news_link in news_links:
-        r = s.get(news_link)
-        soup = BeautifulSoup(r.content, 'html5lib')
-        title = soup.find('title').text.split(
-            '--')[0].replace(u'\xa0', ' ').strip()
-        news_titles.append(title)
+    if has:
+        msg = '目前开放的教学楼，室内人数情况如下：\n'+msg
+    else:
+        msg += f"教学楼全都关门了，你没地方去了！"
 
-    news_titles = list(set(news_titles))
-
-    msg = '最新要闻：\n'
-    msg += '\n'.join(news_titles)
-    msg += '\n——上述数据来源于《人民网》'
+    msg += '原始数据来自【http://ids.sjtu.edu.cn】，该数据通过室内摄像头定时截图并使用人工智能算法进行计数，可能与实际情况略有出入。'
+    msg += '祝你在教室愉快！'
     return msg
-
-
-

@@ -14,8 +14,9 @@ import asyncio
 from aiocqhttp import CQHttp, Event
 
 
-from canteen import get_canteen_msg, get_library_msg, get_news_msg
-from dictionary import get_cheng_yu, get_ci_yu, get_tang_shi, get_song_ci, get_date_img, get_good_text
+from info_sjtu import get_canteen_msg, get_library_msg, get_classroom_msg
+from info_local import get_cheng_yu, get_ci_yu, get_tang_shi, get_song_ci, get_date_img
+from info_web import get_good_text, get_news_msg
 from faq import *
 
 from util import *
@@ -273,7 +274,6 @@ async def _(event: Event):
         Repeat_Monitor['repeating_count'] = 0
         return answer_stop_repeat()
 
-
     # 迟宝发的消息
     if event.user_id == CHI_BOT:
         started_flag = False
@@ -366,6 +366,8 @@ async def _(event: Event):
             return answer_reply(get_canteen_msg())
         if msg_c in ['图书馆', '-l', '--library']:
             return answer_reply(get_library_msg())
+        if msg_c in ['教学楼', '教室', '--classroom']:
+            return answer_reply(get_classroom_msg())
         if msg_c in ['词语', '-w', '--word']:
             return answer_reply(get_ci_yu())
         if msg_c in ['成语', '-i', '--idiom']:
