@@ -98,3 +98,6 @@ def get_news_msg():
     msg += '\n'.join(news_titles)
     msg += '\n——上述数据来源于《人民网》'
     return msg
+
+
+

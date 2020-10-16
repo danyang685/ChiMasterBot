@@ -1,4 +1,6 @@
 # python
+import logging_tree
+import pathlib
 import json
 import logging
 import random
@@ -15,22 +17,30 @@ from aiocqhttp import CQHttp, Event
 from rapidfuzz import process
 
 from canteen import get_canteen_msg, get_library_msg, get_news_msg
-from dictionary import get_cheng_yu, get_ci_yu, get_tang_shi, get_song_ci
+from dictionary import get_cheng_yu, get_ci_yu, get_tang_shi, get_song_ci, get_date_img, get_good_text
+
 
 log = logging.getLogger(__name__)
-log.setLevel(logging.DEBUG)
+# log.setLevel(logging.DEBUG)
 
 console_handler = logging.StreamHandler(stream=stdout)
 console_handler.setLevel(logging.DEBUG)
 console_handler.setFormatter(logging.Formatter(
     '[%(asctime)s] %(levelname)s in %(module)s: %(message)s'))
-log.addHandler(console_handler)
+# log.addHandler(console_handler)
 
 file_handler = logging.FileHandler(filename='log.csv')
-file_handler.setLevel(logging.INFO)
+file_handler.setLevel(logging.DEBUG)
 file_handler.setFormatter(logging.Formatter(
     '%(asctime)s, %(levelname)s, %(name)s, %(message)s'))
 log.addHandler(file_handler)
+
+bot = CQHttp()
+
+# 调低这个一直打log的库的等级
+logging.getLogger('quart.app').setLevel(logging.ERROR)
+logging.getLogger('quart.serving').setLevel(logging.ERROR)
+
 
 QUESTIONS: dict = {}
 QUESTIONS_KEY: dict = {}
@@ -108,8 +118,6 @@ daylight_config = Config(
     recall_react_delay=1
 )
 
-bot = CQHttp()
-
 
 async def answer_all(event: Event):
     await bot.send(
@@ -143,8 +151,8 @@ def answer_book(event: Event):
 
 
 async def answer_weakness(event: Event):
-    say=random.choice(CORPUS)
-    await bot.send(event,say)
+    say = random.choice(CORPUS)
+    await bot.send(event, say)
     return {'reply': f'[CQ:tts,text={say}啊啊啊]'}
 
 
@@ -173,6 +181,7 @@ def answer_reply(message, reply_to=None, mention=None):
     message = message.strip()
 
     msg = reply_to+mention+message
+    log.disabled = False
     log.info(f'message replied: {msg}')
     sleep(random.randint(1200, 1900)/1000)
     return {'reply': reply_to+mention+message}
@@ -249,6 +258,7 @@ async def _(event: Event):
     global wait_chi_answer
     global QUESTIONS
 
+    log.disabled = False
     log.info(f'new measage:【{event.raw_message}】')
 
     if CHECK_SENDER_CARD:
@@ -385,35 +395,39 @@ async def _(event: Event):
             await answer_all(event)
             return
 
-        help_msg = str('问……：向@ChiBot进行合理提问，例：问水源\n'
-                       '主人，……？：通过马纳姆效应解决历史难题，例：主人，你看我帅吗？\n'
-                       '卖弱：基于迟先生语录展开卖弱\n'
-                       '谢谢：回答不客气\n'
-                       '对不起：回答没关系\n'
-                       '-f, --faq, 维护：维护智能解答列表\n'
-                       '-c, --canteen, 食堂：查询食堂当前就餐人数和剩余承载力\n'
-                       '-l, --library, 图书馆：查询图书馆当前在馆人数和剩余承载力\n'
-                       '-n, --news, 新闻：查询最新新闻\n'
-                       'all：查询问答模式支持的所有命令，同-f q\n'
-                       '-m, --mute, 静音, 闭嘴：进入静音模式\n'
-                       '-w, --word, 词语：来一条词语\n'
-                       '-i, --idiom, 成语：来一条成语\n'
-                       '-p, --poetry, 唐诗：来一首唐诗\n'
-                       '-s, --songci, 宋词：来一首宋词\n'
-                       '-v, --version, 版本：显示当前版本\n'
-                       '-h, --help, 帮助：显示我的帮助\n'
-                       '-a, --about, 关于：关于我\n'
-                       '-q, --quit, 退出, 走开：被机器人忽视，道歉后可恢复')
+        help_msg = str('和zoubot一样')
+        str(
+            '问……：向@ChiBot进行合理提问，例：问水源\n'
+            '主人，……？：通过马纳姆效应解决历史难题，例：主人，你看我帅吗？\n'
+            '卖弱：基于迟先生语录展开卖弱\n'
+            '谢谢：回答不客气\n'
+            '对不起：回答没关系\n'
+            '-f, --faq, 维护：维护智能解答列表\n'
+            '-c, --canteen, 食堂：查询食堂当前就餐人数和剩余承载力\n'
+            '-l, --library, 图书馆：查询图书馆当前在馆人数和剩余承载力\n'
+            '-n, --news, 新闻：查询最新新闻\n'
+            'all：查询问答模式支持的所有命令，同-f q\n'
+            '-m, --mute, 静音, 闭嘴：进入静音模式\n'
+            '-w, --word, 词语：来一条词语\n'
+            '-i, --idiom, 成语：来一条成语\n'
+            '-p, --poetry, 唐诗：来一首唐诗\n'
+            '-s, --songci, 宋词：来一首宋词\n'
+            '-v, --version, 版本：显示当前版本\n'
+            '-h, --help, 帮助：显示我的帮助\n'
+            '-a, --about, 关于：关于我\n'
+            '-q, --quit, 退出, 走开：被机器人忽视，道歉后可恢复'
+        )
         if '谢谢' == msg_c:
             return answer_reply('不客气（虽然可能不是对我说的，但是这种简单的回复，我可以代劳）')
         if '对不起' == msg_c:
             return answer_reply('没关系（虽然可能不是对我说的，但是这种简单的回复，我可以代劳）')
         if '卖弱' == msg_c:
-            ds= await answer_weakness(event)
+            ds = await answer_weakness(event)
             return ds
-        if start_in(msg_c.strip(), ['维护', '-f', '--faq']):
+        if start_in(msg_c.strip(), ['维护', '维ei护', '-f', '--faq']):
             msg_admin_list = f"管理员列表：{'、'.join([str(x) for x in ADMINS])}，请联系管理员索要管理员权限。"
-            faq_help = str(
+            faq_help = str('和zoubot一样')
+            str(
                 '维护智能解答列表\n'
                 '命令原型：@我 --faq\n'
                 '参数：'
@@ -617,6 +631,10 @@ async def _(event: Event):
             return answer_reply(get_tang_shi())
         if msg_c in ['宋词', '-s', '--songci']:
             return answer_reply(get_song_ci())
+        if msg_c in ['嘴甜', '--sweet']:
+            return answer_reply(get_good_text())
+        if msg_c in ['时间',  '--time']:
+            return answer_reply(get_date_img())
         if msg_c in ['新闻', '-n', '--news']:
             return answer_reply(get_news_msg())
         if msg_c in ['帮助', '-h', '--help']:
@@ -742,7 +760,7 @@ async def _(event):
         remark=''
     )
 
-    log.debug( f'friend request event! event:{event}')
+    log.debug(f'friend request event! event:{event}')
 
     await asyncio.sleep(0.8)
     await privite_hello(event.user_id)
@@ -811,4 +829,5 @@ if __name__ == '__main__':
     load_faq_questions()
     load_admin()
     load_corpus()
+
     bot.run(host='localhost', port=52311)
