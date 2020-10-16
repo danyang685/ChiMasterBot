@@ -1,5 +1,3 @@
-# python
-import logging_tree
 import pathlib
 import json
 import logging
@@ -14,13 +12,16 @@ from typing import List
 import asyncio
 
 from aiocqhttp import CQHttp, Event
-from rapidfuzz import process
+
 
 from canteen import get_canteen_msg, get_library_msg, get_news_msg
 from dictionary import get_cheng_yu, get_ci_yu, get_tang_shi, get_song_ci, get_date_img, get_good_text
+from faq import *
+
+from util import *
 
 
-log = logging.getLogger(__name__)
+log = logging.getLogger('chimasterbot')
 # log.setLevel(logging.DEBUG)
 
 console_handler = logging.StreamHandler(stream=stdout)
@@ -42,21 +43,15 @@ logging.getLogger('quart.app').setLevel(logging.ERROR)
 logging.getLogger('quart.serving').setLevel(logging.ERROR)
 
 
-QUESTIONS: dict = {}
-QUESTIONS_KEY: dict = {}
-ADMINS: list = []
 HATE_LIST = {}
 RECALL_RECORD = {}
 
-CHI_BOT = 1486024403
-IDIOT = 2780065314
 
 CORPUS: List[str] = []
 TRIGGER: List[str] = []
 REFUSE: List[str] = []
 BOOK: List[str] = []
 
-COMMAND_REGEX = re.compile(r'问\s*(\S+)')
 
 Repeat_Monitor = {'repeating_count': 0, 'last_message': ''}
 
@@ -187,11 +182,7 @@ def answer_reply(message, reply_to=None, mention=None):
     return {'reply': reply_to+mention+message}
 
 
-def at(qq):
-    return f'[CQ:at,qq={qq}]'
-
-
-def answer_enlightenment():
+def answer_stop_repeat():
     return {'reply': f'[CQ:image,file=1cbb384da02520732b3a1037b8ac559b.image]'}
 
 
@@ -264,9 +255,6 @@ async def _(event: Event):
     if CHECK_SENDER_CARD:
         await card_check(event)
 
-    # log.debug(
-    #     f'message received event! event:{event}')
-
     messages = list(filter(lambda m: m['type'] == 'text', event.message))
 
     if messages:
@@ -283,10 +271,8 @@ async def _(event: Event):
 
     if Repeat_Monitor['repeating_count'] == 6:
         Repeat_Monitor['repeating_count'] = 0
-        return answer_enlightenment()
+        return answer_stop_repeat()
 
-    # if Repeat_Monitor['repeating_count'] > 1:
-    #     return None
 
     # 迟宝发的消息
     if event.user_id == CHI_BOT:
@@ -355,270 +341,27 @@ async def _(event: Event):
         if r'/问号脸' in event.raw_message:
             return
 
-        msg_c = event.raw_message.strip(whitespace).strip()
-
-        msg: str = msg_c.strip(punctuation + whitespace)
-        all_at_user = [int(m['data']['qq'])
-                       for m in event.message if m['type'] == 'at']
-
-        # msg_c = msg_c.replace('@主人', '').strip()
-        # log.info(
-        #     f'{event.sender["card"]} call me , he says <{msg}>, raw msg <{event.raw_message}>')
+        msg_c = event.raw_message.strip(whitespace).strip()  # 初步过滤的原始消息
+        msg: str = msg_c.strip(punctuation + whitespace)    # 过滤前后标点符号的原始消息
+        all_atted_user = [
+            int(m['data']['qq'])
+            for m in event.message if m['type'] == 'at'
+        ]
 
         if msg.startswith('问 '):
-            start = time()
-            question = COMMAND_REGEX.search(msg).groups()[0]
-            if len(question) > 8:
-                return None
-            (match_choice, score) = process.extractOne(
-                question, QUESTIONS_KEY.keys())
-            end = time()
-            match_choice = QUESTIONS_KEY[match_choice]
-            log.info(
-                ','.join([str(x) for x in [question, match_choice, '{:.01f}'.format(score)]]))
-            if score < 45:
-                return answer_reply(f'我可能还不知道，不如问问别人？【@我 all】可以查到我知道的所有问题', event['message_id'], event['user_id'])
-            if score < 60:
-                return answer_reply(f'不如试着问问[{match_choice}]？', event['message_id'], event['user_id'])
-            else:
-                if type(QUESTIONS[match_choice]) == str:
-                    # 这是chibot知道的问题
-                    wait_chi_answer = match_choice
-                    return {'reply': f'{at(CHI_BOT)} 问 {match_choice}'}
-                else:
-                    return answer_reply(QUESTIONS[match_choice]['answer']+f'【{match_choice}】', reply_to=event['message_id'])
-
+            return answer_reply(ask(msg), reply_to=event['message_id'])
         if (msg.startswith('主人，') or msg.startswith('主人主人，')) and (msg.endswith('？')):
             return answer_book(event)
-
         if msg == 'all':
-            await answer_all(event)
-            return
-
-        help_msg = str('和zoubot一样')
-        str(
-            '问……：向@ChiBot进行合理提问，例：问水源\n'
-            '主人，……？：通过马纳姆效应解决历史难题，例：主人，你看我帅吗？\n'
-            '卖弱：基于迟先生语录展开卖弱\n'
-            '谢谢：回答不客气\n'
-            '对不起：回答没关系\n'
-            '-f, --faq, 维护：维护智能解答列表\n'
-            '-c, --canteen, 食堂：查询食堂当前就餐人数和剩余承载力\n'
-            '-l, --library, 图书馆：查询图书馆当前在馆人数和剩余承载力\n'
-            '-n, --news, 新闻：查询最新新闻\n'
-            'all：查询问答模式支持的所有命令，同-f q\n'
-            '-m, --mute, 静音, 闭嘴：进入静音模式\n'
-            '-w, --word, 词语：来一条词语\n'
-            '-i, --idiom, 成语：来一条成语\n'
-            '-p, --poetry, 唐诗：来一首唐诗\n'
-            '-s, --songci, 宋词：来一首宋词\n'
-            '-v, --version, 版本：显示当前版本\n'
-            '-h, --help, 帮助：显示我的帮助\n'
-            '-a, --about, 关于：关于我\n'
-            '-q, --quit, 退出, 走开：被机器人忽视，道歉后可恢复'
-        )
+            return await answer_all(event)
         if '谢谢' == msg_c:
             return answer_reply('不客气（虽然可能不是对我说的，但是这种简单的回复，我可以代劳）')
         if '对不起' == msg_c:
             return answer_reply('没关系（虽然可能不是对我说的，但是这种简单的回复，我可以代劳）')
         if '卖弱' == msg_c:
-            ds = await answer_weakness(event)
-            return ds
-        if start_in(msg_c.strip(), ['维护', '维ei护', '-f', '--faq']):
-            msg_admin_list = f"管理员列表：{'、'.join([str(x) for x in ADMINS])}，请联系管理员索要管理员权限。"
-            faq_help = str('和zoubot一样')
-            str(
-                '维护智能解答列表\n'
-                '命令原型：@我 --faq\n'
-                '参数：'
-                'add：添加问题，例：add 这个问题 那个答案\n'
-                'edit：修改答案，例：edit 这个问题 这个答案\n'
-                'amend：追加答案，例：amend 这个问题 第二个答案\n'
-                'del：删除问题，例：del 这个问题\n'
-                'addalias：添加别名，例：addalias jAccount 甲亢\n'
-                'show：显示当前所有问题，例：show q或show ans或show alias或show chiknow\n'
-                'auth：授权用户维护列表，例：auth @某人\n'
-                'admin：显示授权用户列表，例：admin\n'
-                'help：显示帮助\n'
-            )
-            cmd = ' '.join(msg_c.split(' ')[1:]).strip()
-            cmd_0 = cmd.split(' ')[0].strip()
-            log.info(f'faq command:{cmd_0}')
-
-            if cmd_0 == 'add':
-                if event['user_id'] not in ADMINS:
-                    return answer_reply('无权操作，'+msg_admin_list, reply_to=event['message_id'])
-                cmd2 = event.raw_message[event.raw_message.find(
-                    cmd_0)+len(cmd_0):].strip()
-                cmd_q = cmd2.split(' ')[0].strip()
-                cmd_a = ' '.join(cmd2.split(' ')[1:]).strip()
-                if 'CQ:image' in cmd_q:
-                    return answer_reply(
-                        f'问题标题内带有图片，请修改后再添加'
-                    )
-                if cmd_q not in QUESTIONS:
-                    QUESTIONS[cmd_q] = {}
-                    QUESTIONS[cmd_q]['answer'] = cmd_a
-                    QUESTIONS[cmd_q]['alias'] = [cmd_q]
-                    save_questions()
-                    return answer_reply(
-                        f'问题添加成功，问题：《{cmd_q}》，回答：《{cmd_a}》'
-                    )
-                else:
-                    return answer_reply(
-                        f'问题已存在，请进行更新'
-                    )
-            elif cmd_0 == 'addalias':
-                if event['user_id'] not in ADMINS:
-                    return answer_reply('无权操作，'+msg_admin_list, reply_to=event['message_id'])
-                cmd2 = event.raw_message[event.raw_message.find(
-                    cmd_0)+len(cmd_0):].strip()
-                cmd_q = cmd2.split(' ')[0].strip()
-                cmd_a = ' '.join(cmd2.split(' ')[1:]).strip()
-                if cmd_q in QUESTIONS:
-                    if cmd_a not in QUESTIONS[cmd_q]['alias']:
-                        QUESTIONS[cmd_q]['alias'].append(cmd_a)
-                    save_questions()
-                    log.warning(
-                        f'question alias【{cmd_q}】 = 【{cmd_a}】added!')
-                    return answer_reply(
-                        f"问题别名添加成功，问题：《{cmd_q}》，别名：《{'、'.join(QUESTIONS[cmd_q]['alias'])}》"
-                    )
-                else:
-                    return answer_reply(
-                        f'问题尚不存在，请先添加'
-                    )
-            elif cmd.startswith('show'):
-                cmd2 = ' '.join(cmd.split(' ')[1:]).strip()
-                cmd_para1 = cmd2.split(' ')[0].strip()
-
-                if cmd_para1 == 'ans':
-                    if event['user_id'] not in ADMINS:
-                        return answer_reply('无权操作，'+msg_admin_list, reply_to=event['message_id'])
-                    ans = '\n'.join(
-                        [
-                            f"问：【{k}？】\n答：【{v['answer']}】\n"
-                            for k, v in QUESTIONS.items()
-                            if type(v) == dict
-                        ]
-                    )
-                elif cmd_para1 == 'chiknow':
-                    ans = 'ChiBot知道而我不知道的问题：'
-                    ans += '、'.join(
-                        [
-                            f"{k}"
-                            for k, v in QUESTIONS.items()
-                            if type(v) != dict
-                        ]
-                    )
-                elif cmd_para1 == 'alias':
-                    ans = '问题及其别名列表：'
-                    ans += '、'.join(
-                        [
-                            f"{k}:[{','.join(v['alias'])}]"
-                            for k, v in QUESTIONS.items()
-                            if type(v) == dict
-                        ]
-                    )
-                else:
-                    ans = '、'.join(
-                        [
-                            f"{k}"
-                            for k, v in QUESTIONS.items()
-                        ]
-                    )
-                return answer_reply(ans, mention=event.user_id)
-            elif cmd.startswith('del'):
-                if event['user_id'] not in ADMINS:
-                    return answer_reply('无权操作，'+msg_admin_list, reply_to=event['message_id'])
-                cmd2 = ' '.join(cmd.split(' ')[1:]).strip()
-                cmd_q = cmd2.split(' ')[0].strip()
-
-                if cmd_q in QUESTIONS:
-                    del QUESTIONS[cmd_q]
-                    save_questions()
-                    log.warning(f'question 【{cmd_q}】 deleted!')
-                    return answer_reply(
-                        f'问题《{cmd_q}》删除成功'
-                    )
-                else:
-                    return answer_reply(
-                        f'问题不存在，无法删除'
-                    )
-            elif cmd_0 == 'edit':
-                if event['user_id'] not in ADMINS:
-                    return answer_reply('无权操作，'+msg_admin_list, reply_to=event['message_id'])
-                cmd2 = event.raw_message[event.raw_message.find(
-                    cmd_0)+len(cmd_0):].strip()
-                cmd_q = cmd2.split(' ')[0].strip()
-                cmd_a = ' '.join(cmd2.split(' ')[1:]).strip()
-                if cmd_q in QUESTIONS:
-                    if type(QUESTIONS[cmd_q]) == str:
-                        QUESTIONS[cmd_q] = {}
-                        QUESTIONS[cmd_q]['alias'] = [cmd_q]
-                    old_ans = QUESTIONS[cmd_q]['answer']
-                    QUESTIONS[cmd_q]['answer'] = cmd_a
-                    save_questions()
-                    log.warning(
-                        f'question 【{cmd_q}】 answer updated【{old_ans}】->【{cmd_a}】')
-                    return answer_reply(
-                        f'回答更新成功，问题：《{cmd_q}》，新回答：《{cmd_a}》'
-                    )
-                else:
-                    return answer_reply(
-                        f'问题尚不存在，请先添加',
-                        mention=event.user_id
-                    )
-            elif cmd_0 == 'amend':
-                if event['user_id'] not in ADMINS:
-                    return answer_reply('无权操作，'+msg_admin_list, reply_to=event['message_id'])
-                cmd2 = event.raw_message[event.raw_message.find(
-                    cmd_0)+len(cmd_0):].strip()
-                cmd_q = cmd2.split(' ')[0].strip()
-                cmd_a = ' '.join(cmd2.split(' ')[1:]).strip()
-                if cmd_q in QUESTIONS:
-                    if type(QUESTIONS[cmd_q]) == str:
-                        QUESTIONS[cmd_q] = {}
-                        QUESTIONS[cmd_q]['alias'] = [cmd_q]
-                    old_ans = QUESTIONS[cmd_q]['answer']
-                    QUESTIONS[cmd_q]['answer'] += cmd_a
-                    cmd_a = QUESTIONS[cmd_q]['answer']
-                    save_questions()
-                    log.warning(
-                        f'question 【{cmd_q}】 answer amended 【{old_ans}】 -> 【{cmd_a}】')
-                    return answer_reply(
-                        f'回答补充成功，问题：《{cmd_q}》，新回答：《{cmd_a}》',
-                        mention=event.user_id
-                    )
-                else:
-                    return answer_reply(
-                        f'问题【{cmd_q}】尚不存在，请先添加',
-                        mention=event.user_id
-                    )
-            elif cmd.startswith('auth'):
-                if event['user_id'] not in ADMINS:
-                    return answer_reply('无权操作，'+msg_admin_list, reply_to=event['message_id'])
-                cmd2 = ' '.join(cmd.split(' ')[1:]).strip()
-
-                para_qqs = all_at_user
-                msg = ''
-                if len(para_qqs):
-                    for para_qq in para_qqs:
-                        if para_qq not in ADMINS:
-                            ADMINS.append(para_qq)
-                            save_admin()
-                        log.warning(f'authorized user {para_qq} added!')
-                        msg += f'用户授权成功，{at(para_qq)}（QQ号{para_qq}）现在已经能够维护智能解答列表。\n'
-                    return answer_reply(
-                        msg +
-                        f"当前管理员共{len(ADMINS)}人"
-                    )
-                else:
-                    return answer_reply('请艾特一个或多个待授权用户', reply_to=event['message_id'])
-            elif cmd.startswith('admin'):
-                return answer_reply(msg_admin_list, reply_to=event['message_id'])
-            else:
-                return answer_reply(faq_help, mention=event.user_id)
+            return await answer_weakness(event)
+        if start_in(msg_c, ['维护', '维ei护', '-f', '--faq']):
+            return answer_reply(faq(msg_c, event['user_id'], all_atted_user))
         if msg_c in ['食堂', '-c', '--canteen']:
             return answer_reply(get_canteen_msg())
         if msg_c in ['图书馆', '-l', '--library']:
@@ -638,19 +381,11 @@ async def _(event: Event):
         if msg_c in ['新闻', '-n', '--news']:
             return answer_reply(get_news_msg())
         if msg_c in ['帮助', '-h', '--help']:
-            return answer_reply('\n'+help_msg)
+            return answer_reply('\n'+HELP_TEXT)
         if msg_c in ['版本', '-v', '--version']:
             return answer_reply('您使用已经是最新版了！[CQ:face,id=66][CQ:face,id=66][CQ:face,id=66]')
         if msg_c in ['关于', '-a', '--about']:
-            about_msg = str(
-                f'机器人源代码来自：https://github.com/LuminousXLB/TaraBot，原作者小笼包。'
-                f'由人参果修改并运营。'
-                f'卖弱素材由迟先生编纂（有关更多关于迟先生的个人信息，可以问我）；'
-                f'历史难题答案素材来源于《答案之书》；'
-                f'答疑素材由ddl编写，目前可由管理员通过交互命令进行完善；'
-                f'实时信息查询来自于相应各开放接口。'
-            )
-            return answer_reply(about_msg)
+            return answer_reply(ABOUT_TEXT)
         if msg_c in ['退出', '走开', '-q', '--quit']:
             HATE_LIST[event['user_id']] = True
             return answer_reply('[CQ:image,file=a5445a8be0afa913756c574e07fa0757.image]', reply_to=event['message_id'])
@@ -673,7 +408,7 @@ async def _(event: Event):
             await bot.delete_msg(message_id=event['message_id'])
             return None
         if msg_c.startswith('戳'):
-            for user in all_at_user:
+            for user in all_atted_user:
                 await bot.send(event,
                                message=f'[CQ:poke,qq={user}]',
                                at_sender=True,
@@ -692,8 +427,9 @@ async def _(event: Event):
     if '[CQ:video' in event.raw_message:
         return answer_video()
 
-    (match_choice, score) = process.extractOne(
-        event.raw_message, TRIGGER + CORPUS)
+    # (match_choice, score) = process.extractOne(
+    #     event.raw_message, TRIGGER + CORPUS)
+
     # log.debug(f'{event.sender["card"]} == 检测卖弱 {config.weak_prob}')
     # log.info(','.join([str(x)
     #                    for x in [event.raw_message, match_choice, score]]))
@@ -780,44 +516,6 @@ def load_corpus():
     BOOK = Path('answers.txt').read_text('utf-8').splitlines()
 
 
-def load_faq_questions():
-    global QUESTIONS, QUESTIONS_KEY
-    QUESTIONS = json.loads(Path('questions.json').read_text('utf-8'))
-    for k, v in QUESTIONS.items():
-        if type(v) == dict:
-            QUESTIONS_KEY.update({alias: k for alias in v['alias']})
-        else:
-            QUESTIONS_KEY.update({k: k})
-
-
-def save_questions():
-    Path('questions.json').write_text(
-        json.dumps(
-            QUESTIONS,
-            ensure_ascii=False,
-            indent=2
-        ),
-        'utf-8'
-    )
-    load_faq_questions()
-
-
-def load_admin():
-    global ADMINS
-    ADMINS = json.loads(Path('admins.json').read_text('utf-8'))
-
-
-def save_admin():
-    Path('admins.json').write_text(
-        json.dumps(
-            ADMINS,
-            ensure_ascii=False,
-            indent=2
-        ),
-        'utf-8'
-    )
-
-
 def start_in(msg, leading_list):
     for i in leading_list:
         if msg.startswith(i):
@@ -826,8 +524,6 @@ def start_in(msg, leading_list):
 
 
 if __name__ == '__main__':
-    load_faq_questions()
-    load_admin()
     load_corpus()
 
     bot.run(host='localhost', port=52311)
