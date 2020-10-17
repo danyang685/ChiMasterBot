@@ -1,6 +1,7 @@
 import base64
 from random import expovariate, randint
 from PIL import Image, ImageFont, ImageDraw, ImageChops  # 导入模块
+import colorsys
 import io
 from datetime import datetime
 import json
@@ -27,7 +28,6 @@ cheng_yu_key = list(cheng_yu.keys())
 
 tang_shi = json.loads(Path('tang_shi.json').read_text(encoding='utf8'))
 song_ci = json.loads(Path('song_ci.json').read_text(encoding='utf8'))
-
 
 
 time_to_do = {
@@ -118,12 +118,12 @@ def get_date_img():
             todo = time_to_do[time_to_do_key[i]]
             break
 
-    now_str = now.strftime('%H{h}%M{f}%S{s}，该{todo}了').format(
-        h='时', f='分', s='秒', todo=todo)  # %Y{y}%m{m}%d{d}  # y='年', m='月', d='日',
+    # %Y{y}%m{m}%d{d}  # h='时', f='分', s='秒', y='年', m='月', d='日'
+    now_str = f"时间：{now.strftime('%H:%M:%S')}，该{todo}了"
 
     imgurl = 'base64://' + \
-        create_img_base64(now_str, (randint(100, 180) for i in range(3)))
+        create_img_base64(
+            now_str, tuple([int(i*255)
+                            for i in colorsys.hsv_to_rgb(random.random(), 0.7, 0.6)])
+        )
     return f'[CQ:image,file={imgurl}]'  # type=flash,
-
-
-
