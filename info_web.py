@@ -40,6 +40,9 @@ def get_news_msg():
     return msg
 
 
+if not Path('good_text.json').is_file():
+    Path('good_text.json').write_text('[]')
+
 good_text = json.loads(Path('good_text.json').read_text(encoding='utf8'))
 
 
