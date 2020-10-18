@@ -13,6 +13,7 @@ log = logging.getLogger('chimasterbot')
 
 COMMAND_REGEX = re.compile(r'问\s*(\S+)')
 
+
 def load_faq_questions():
     global QUESTIONS, QUESTIONS_KEY
     if not Path('questions.json').is_file():
@@ -80,20 +81,24 @@ def faq(param_text, operator_id, all_atted_user):
     unauthorized_text = f'用户【{operator_id}】无权操作，{msg_admin_list}'
     faq_help = help_text
 
-    cmd = param_text
+    cmd = param_text.split(' ', 1)[1].strip()
 
-    log.info(f'faq command:{param_text},operator:{operator_id}')
+    log.info(f'faq command:{cmd},operator:{operator_id}')
 
-    cmd_0 = param_text.split(' ')[0].strip()
+    cmd_0 = cmd.split(' ')[0].strip()
+
+    print(cmd)
+    print(cmd_0)
 
     if cmd_0 == 'add':
         if operator_id not in ADMINS:
             return unauthorized_text
-        cmd2 = param_text[param_text.find(cmd_0)+len(cmd_0):].strip()
-        cmd_q = cmd2.split(' ')[0].strip()
-        cmd_a = ' '.join(cmd2.split(' ')[1:]).strip()
+        cmd2 = cmd[cmd.find(cmd_0)+len(cmd_0):].strip()
+        cmd_q, cmd_a = [i.strip() for i in cmd2.split(' ', 1)]
         if 'CQ:image' in cmd_q:
             return '问题标题内带有图片，请修改后再添加'
+        if not cmd_a:
+            return f'请填写回答'
         if cmd_q not in QUESTIONS:
             QUESTIONS[cmd_q] = {}
             QUESTIONS[cmd_q]['answer'] = cmd_a
@@ -105,9 +110,8 @@ def faq(param_text, operator_id, all_atted_user):
     elif cmd_0 == 'addalias':
         if operator_id not in ADMINS:
             return unauthorized_text
-        cmd2 = param_text[param_text.find(cmd_0)+len(cmd_0):].strip()
-        cmd_q = cmd2.split(' ')[0].strip()
-        cmd_a = ' '.join(cmd2.split(' ')[1:]).strip()
+        cmd2 = cmd[cmd.find(cmd_0)+len(cmd_0):].strip()
+        cmd_q, cmd_a = [i.strip() for i in cmd2.split(' ', 1)]
         if cmd_q in QUESTIONS:
             if cmd_a not in QUESTIONS[cmd_q]['alias']:
                 QUESTIONS[cmd_q]['alias'].append(cmd_a)
@@ -118,7 +122,7 @@ def faq(param_text, operator_id, all_atted_user):
         else:
             return f'问题尚不存在，请先添加'
     elif cmd.startswith('show'):
-        cmd2 = param_text[param_text.find(cmd_0)+len(cmd_0):].strip()
+        cmd2 = cmd[cmd.find(cmd_0)+len(cmd_0):].strip()
         cmd_para1 = cmd2.split(' ')[0].strip()
 
         if cmd_para1 == 'ans':
@@ -173,9 +177,10 @@ def faq(param_text, operator_id, all_atted_user):
     elif cmd_0 == 'edit':
         if operator_id not in ADMINS:
             return unauthorized_text
-        cmd2 = param_text[param_text.find(cmd_0)+len(cmd_0):].strip()
-        cmd_q = cmd2.split(' ')[0].strip()
-        cmd_a = ' '.join(cmd2.split(' ')[1:]).strip()
+        cmd2 = cmd[cmd.find(cmd_0)+len(cmd_0):].strip()
+        cmd_q, cmd_a = [i.strip() for i in cmd2.split(' ', 1)]
+        if not cmd_a:
+            return f'请填写回答'
         if cmd_q in QUESTIONS:
             if type(QUESTIONS[cmd_q]) == str:
                 QUESTIONS[cmd_q] = {}
@@ -191,9 +196,8 @@ def faq(param_text, operator_id, all_atted_user):
     elif cmd_0 == 'amend':
         if operator_id not in ADMINS:
             return unauthorized_text
-        cmd2 = param_text[param_text.find(cmd_0)+len(cmd_0):].strip()
-        cmd_q = cmd2.split(' ')[0].strip()
-        cmd_a = ' '.join(cmd2.split(' ')[1:]).strip()
+        cmd2 = cmd[cmd.find(cmd_0)+len(cmd_0):].strip()
+        cmd_q, cmd_a = [i.strip() for i in cmd2.split(' ', 1)]
         if cmd_q in QUESTIONS:
             if type(QUESTIONS[cmd_q]) == str:
                 QUESTIONS[cmd_q] = {}
@@ -228,6 +232,7 @@ def faq(param_text, operator_id, all_atted_user):
         return msg_admin_list
     else:
         return faq_help
+
 
 def ask(question):
     question = COMMAND_REGEX.search(question).groups()[0]
