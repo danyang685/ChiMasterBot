@@ -9,25 +9,69 @@ import re
 import random
 from pathlib import Path
 
-ci_yu = {
-    item['ci']: item['explanation']
-    for item in json.loads(
-        Path('ci_yu.json'
-             ).read_text(encoding='utf8')
-    )
-}
-ci_yu_key = list(ci_yu.keys())
-cheng_yu = {
-    item['word']: item['explanation']
-    for item in json.loads(
-        Path('cheng_yu.json'
-             ).read_text(encoding='utf8')
-    )
-}
-cheng_yu_key = list(cheng_yu.keys())
 
-tang_shi = json.loads(Path('tang_shi.json').read_text(encoding='utf8'))
-song_ci = json.loads(Path('song_ci.json').read_text(encoding='utf8'))
+class Jsonobj:
+    def __init__(self, obj, key):
+        self.obj = obj
+        self.key = key
+
+
+class Lazyload_jsonobj:
+    def __init__(self, filename, loader=lambda x: x, chooser=lambda x: random.choice(x.obj), key_gen=None):
+        self.filename = filename
+        self.loader = loader
+        self.chooser = chooser
+        self.key_gen = key_gen
+
+        self.loaded = False
+
+    def load_obj(self):
+        obj = self.loader(json.loads(
+            Path(self.filename).read_text(encoding='utf8')))
+        key = self.key_gen(obj) if self.key_gen else None
+        self.obj = Jsonobj(obj, key)
+        self.loaded = True
+
+    def choose_one(self):
+        if not self.loaded:
+            self.load_obj()
+        return self.chooser(self.obj)
+
+
+def ci_yu_chooser(obj):
+    # return 'None'
+    word = random.choice(obj.key)
+    explain = re.sub(r'\A[0-9]*\.', '', obj.obj[word])
+    return f'【{word}】：{explain}'
+
+
+ci_yu = Lazyload_jsonobj(
+    filename='ci_yu.json',
+    loader=lambda x: {item['ci']: item['explanation'] for item in x},
+    key_gen=lambda x: list(x.keys()),
+    chooser=ci_yu_chooser
+)
+
+
+def cheng_yu_chooser(obj):
+    word = random.choice(obj.key)
+    explain = obj.obj[word]
+    return f'\n【{word}】：{explain}'
+
+
+cheng_yu = Lazyload_jsonobj(
+    filename='cheng_yu.json',
+    loader=lambda x: {item['word']: item['explanation'] for item in x},
+    key_gen=lambda x: list(x.keys()),
+    chooser=cheng_yu_chooser
+)
+
+tang_shi = Lazyload_jsonobj(
+    filename='tang_shi.json'
+)
+song_ci = Lazyload_jsonobj(
+    filename='song_ci.json'
+)
 
 
 time_to_do = {
@@ -49,24 +93,20 @@ time_to_do_key = list(time_to_do.keys())
 
 
 def get_ci_yu():
-    word = random.choice(ci_yu_key)
-    explain = re.sub(r'\A[0-9]*\.', '', ci_yu[word])
-    return f'【{word}】：{explain}'
+    return ci_yu.choose_one()
 
 
 def get_cheng_yu():
-    word = random.choice(cheng_yu_key)
-    explain = cheng_yu[word]
-    return f'\n【{word}】：{explain}'
+    return cheng_yu.choose_one()
 
 
 def get_tang_shi():
-    shi = random.choice(tang_shi)
+    shi = tang_shi.choose_one()
     return f'{shi[2]}\n《{shi[0]}》——{shi[1]}'
 
 
 def get_song_ci():
-    ci = random.choice(song_ci)
+    ci = song_ci.choose_one()
     return f'{ci[2]}\n《{ci[0]}》——{ci[1]}'
 
 
