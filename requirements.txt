@@ -2,3 +2,4 @@ aiocqhttp
 rapidfuzz
 requests
 beautifulsoup4
+pillow
