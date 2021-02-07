@@ -238,7 +238,7 @@ def ask(question):
     question = COMMAND_REGEX.search(question).groups()[0]
     if len(question) > 8:
         return None
-    (match_choice, score) = fuzz_match.extractOne(
+    (match_choice, score, choice_idx) = fuzz_match.extractOne(
         question, QUESTIONS_KEY.keys())
     match_choice = QUESTIONS_KEY[match_choice]
     log.info(
